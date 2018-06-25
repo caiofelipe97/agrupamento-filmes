@@ -1,3 +1,4 @@
+
 ---
 title: "Tipos de filme de Will Smith"
 output:
@@ -11,6 +12,7 @@ library(tidyverse, warn.conflicts = F)
 library(rvest)
 library(plotly)
 library(cluster)
+library(here)
 library(ggdendro)
 library(gridExtra)
 source(here::here("code/lib.R"))
@@ -30,39 +32,80 @@ paleta = c("#404E4D",
 ```
 
 ```{r}
-## ANTES DE USAR
-# Para criar data/movies.csv
-# import_data("tom_cruise") ou com o ator/atriz que você escolher
 import_data("vin_diesel")
-```
-
-
-```{r read}
 filmes = read_imported_data()
 ```
 
 
+
+#Bilheteria
 ```{r}
-agrupamento_h_2d = filmes %>% 
-    as.data.frame() %>% 
-    column_to_rownames("filme") %>%
-    select(avaliacao, bilheteria) %>%
-    dist(method = "euclidean") %>% 
-    hclust(method = "centroid")
+p <- filmes %>%
+    ggplot(aes(x = ano, 
+               y = bilheteria,
+               text = paste("Filme:",filme,
+                            "\nBilheteria:",
+                            bilheteria,"m",
+                            "\nAno:",ano))) + 
+    geom_point(size = 4, color = paleta[2]) +
+    labs(y = "Bilheteria", x = "Ano de lançamento")
 
-ggdendrogram(agrupamento_h_2d, rotate = TRUE)
+ggplotly(p, tooltip = "text") %>%
+    layout(autosize = F)
+```
+* O filme de maior destaque de bilheteria em que Vin Diesel participou é Avengers: Infinity War disparado do ano de 2018.
+* De 2001 até 2010 não tiveram filmes com grandes destaques, estando sempre entre  10M - 160M de bilheteria.
+* Após 2010, apareceram os primeiros filmes de sucesso, sendo eles velozes e furiosos e os filmes da Marvel onde ele interpreta o Groot. Ainda assim, existem filmes de pouco sucesso de bilheteria nessa mesma época.
 
-data.frame(height = agrupamento_h_2d$height) %>% 
-    mutate(k = 1:n()) %>% 
-    ggplot(aes(x = k, y = height)) + 
-    geom_line(colour = "grey") + 
-    geom_point() + 
-    labs(x = "Número de clusters produzido", y = "Dissimilaridade na junção")
+```{r}
+p <- filmes %>% 
+    ggplot(aes(x = "",
+               y = bilheteria,
+               label = filme,
+               text = paste("Filme:",filme,
+                            "\nBilheteria:",
+                            bilheteria,"m"))) + 
+    geom_jitter(width = .05, alpha = .3, size = 3) + 
+    labs(x = "", y="Bilheteria")
 
-plota_hclusts_2d(agrupamento_h_2d, 
-                 filmes, 
-                 c("avaliacao", "bilheteria"), 
-                 linkage_method = "centroid", ks = 1:6) 
+ggplotly(p, tooltip="text") %>% 
+    layout(autosize = F)
+```
+* Observa-se que separar os grupos entre os acima e abaixo de 200 milhões de bilheteria como uma boa abordagem.
+* **Avengers: Infinity War** pode ficar em um grupo só, já que tem um maior destauqe. Considerando assim 3 grupos de filmes a partir da bilheteria.
+
+#Avaliação
+```{r}
+p <- filmes %>% 
+    ggplot(aes(x = ano, 
+               y = avaliacao,
+                text = paste("Filme:",filme,
+                            "\nAvaliação:",
+                            avaliacao,
+                            "\nAno:",ano))) + 
+    geom_point(size = 4, color = paleta[2])  +
+    scale_y_continuous(limits = c(0, 100)) +
+    labs(y = "Avaliação", x = "Ano de lançamento")
+
+ggplotly(p, tooltip = "text") %>%
+    layout(autosize = F)
+```
+
+
+
+
+```{r}
+p <- filmes %>% 
+    ggplot(aes(x = "",
+               y = avaliacao,
+               text = paste(
+                    "Filme:",filme,
+                    "\nAvaliação:",avaliacao))) + 
+    geom_jitter(width = .05, alpha = .3, size = 3) + 
+    labs(x = "", y="Avaliação RT")
+
+ggplotly(p, tooltip = "text") %>% 
+    layout(autosize = F)
 ```
 
 ```{r}
