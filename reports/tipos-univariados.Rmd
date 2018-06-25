@@ -1,5 +1,5 @@
 ---
-title: "Tipos de filme de FULANO(A)"
+title: "Tipos de filme de Will Smith"
 output:
     html_document:
     df_print: paged
@@ -7,13 +7,14 @@ theme: sandstone
 ---
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-library(tidyverse)
-library(here)
-library(cluster)
+library(tidyverse, warn.conflicts = F)
+library(rvest)
 library(plotly)
+library(cluster)
 library(ggdendro)
-
+library(gridExtra)
 source(here::here("code/lib.R"))
+source(here::here("code/plota_solucoes_hclust.R"))
 theme_set(theme_report())
 
 knitr::opts_chunk$set(tidy = FALSE,
@@ -32,6 +33,7 @@ paleta = c("#404E4D",
 ## ANTES DE USAR
 # Para criar data/movies.csv
 # import_data("tom_cruise") ou com o ator/atriz que você escolher
+import_data("vin_diesel")
 ```
 
 
@@ -39,89 +41,106 @@ paleta = c("#404E4D",
 filmes = read_imported_data()
 ```
 
-## Descrição
 
 ```{r}
-filmes %>% 
-    ggplot(aes(x = ano, y = bilheteria)) + 
-    geom_point(size = 4, color = paleta[1]) 
-```
-
-
-
-```{r}
-filmes %>% 
-    ggplot(aes(x = bilheteria)) + 
-    geom_histogram(binwidth = 15, fill = paleta[2], color = "black") + 
-    geom_rug(size = .5) 
-```
-
-```{r}
-filmes %>% 
-    ggplot(aes(x = avaliacao)) + 
-    geom_histogram(binwidth = 10, boundary = 0, fill = paleta[3], color = "black") + 
-    geom_rug(size = .5) 
-```
-
-## Estrutura de grupos?
-
-```{r}
-p = filmes %>% 
-    ggplot(aes(x = "", y = bilheteria, label = filme)) + 
-    geom_jitter(width = .05, alpha = .3, size = 3) + 
-    labs(x = "")
-
-ggplotly(p)
-```
-
-## Agrupamento hierárquico
-
-```{r}
-agrupamento_h = filmes %>% 
-    mutate(nome = paste0(filme, " (av=", avaliacao, ")")) %>% 
+agrupamento_h_2d = filmes %>% 
     as.data.frame() %>% 
-    column_to_rownames("filme") %>% 
-    select(avaliacao) %>%
-    dist(method = "euclidian") %>% 
+    column_to_rownames("filme") %>%
+    select(avaliacao, bilheteria) %>%
+    dist(method = "euclidean") %>% 
+    hclust(method = "centroid")
+
+ggdendrogram(agrupamento_h_2d, rotate = TRUE)
+
+data.frame(height = agrupamento_h_2d$height) %>% 
+    mutate(k = 1:n()) %>% 
+    ggplot(aes(x = k, y = height)) + 
+    geom_line(colour = "grey") + 
+    geom_point() + 
+    labs(x = "Número de clusters produzido", y = "Dissimilaridade na junção")
+
+plota_hclusts_2d(agrupamento_h_2d, 
+                 filmes, 
+                 c("avaliacao", "bilheteria"), 
+                 linkage_method = "centroid", ks = 1:6) 
+```
+
+```{r}
+agrupamento_h_2d = filmes %>% 
+    mutate_at(vars(avaliacao, bilheteria), 
+              funs(scale)) %>% 
+    as.data.frame() %>% 
+    column_to_rownames("filme") %>%
+    select(avaliacao, bilheteria) %>%
+    dist(method = "euclidean") %>% 
+    hclust(method = "centroid")
+
+ggdendrogram(agrupamento_h_2d, rotate = TRUE, theme_dendro = F)
+
+plota_hclusts_2d(agrupamento_h_2d, 
+                 filmes, 
+                 c("avaliacao", "bilheteria"), 
+                 linkage_method = "ward.D", ks = 1:6) 
+```
+
+```{r}
+agrupamento_h_2d = filmes %>% 
+    mutate(`BOX OFFICE` = log10(bilheteria)) %>%
+    mutate_at(vars(avaliacao, bilheteria), funs(scale)) %>%
+    as.data.frame() %>% 
+    column_to_rownames("filme") %>%
+    select(avaliacao, bilheteria) %>%
+    dist(method = "euclidean") %>% 
     hclust(method = "ward.D")
 
-ggdendrogram(agrupamento_h, rotate = T, size = 2, theme_dendro = F) + 
-    labs(y = "Dissimilaridade", x = "", title = "Dendrograma")
-```
+ggdendrogram(agrupamento_h_2d, rotate = TRUE, theme_dendro = F)
 
-```{r}
-get_grupos <- function(agrupamento, num_grupos){
-    agrupamento %>% 
-        cutree(num_grupos) %>% 
-        as.data.frame() %>% 
-        mutate(label = rownames(.)) %>% 
-        gather(key =  "k", value = "grupo", -label) %>% 
-        mutate(grupo = as.character(grupo))
-}
-
-atribuicoes = get_grupos(agrupamento_h, num_grupos = 1:6)
-
-atribuicoes = atribuicoes %>% 
-    left_join(filmes, by = c("label" = "filme"))
-
-atribuicoes %>% 
-    ggplot(aes(x = "Filmes", y = avaliacao, colour = grupo)) + 
-    geom_jitter(width = .02, height = 0, size = 1.6, alpha = .6) + 
-    facet_wrap(~ paste(k, " grupos")) + 
+filmes2 = filmes %>% mutate(bilheteria = log10(bilheteria))
+plota_hclusts_2d(agrupamento_h_2d, 
+                 filmes2, 
+                 c("avaliacao", "bilheteria"), 
+                 linkage_method = "ward.D", ks = 1:6) + 
+    scale_y_log10() + 
     scale_color_brewer(palette = "Dark2")
 
+plota_hclusts_2d(agrupamento_h_2d, 
+                 filmes2, 
+                 c("avaliacao", "bilheteria"), 
+                 linkage_method = "ward.D", ks = 1:6) + 
+    scale_color_brewer(palette = "Dark2")
 ```
 
 ```{r}
-k_escolhido = 3
+filmes2 = filmes %>% 
+    mutate(TITLE_LENGTH = nchar(filme))
 
-atribuicoes %>% 
-    filter(k == k_escolhido) %>% 
-    ggplot(aes(x = reorder(label, avaliacao), y = avaliacao, colour = grupo)) + 
-    geom_jitter(width = .02, height = 0, size = 3, alpha = .6) + 
-    facet_wrap(~ paste(k, " grupos")) + 
-    scale_color_brewer(palette = "Dark2") + 
-    labs(x = "", y = "Avaliação RT") + 
-    coord_flip() 
+glimpse(filmes2)
+
+dists = filmes2 %>% 
+    as.data.frame() %>% 
+    mutate(bilheteria = log10(bilheteria)) %>% 
+    mutate_at(vars(avaliacao, 
+                   bilheteria, 
+                   TITLE_LENGTH, 
+                   ano), 
+              funs(scale)) %>% 
+    column_to_rownames("filme") %>%
+    select(avaliacao, bilheteria, TITLE_LENGTH, ano) %>%
+    dist(method = "euclidean")
+
+agrupamento_h_md = dists %>% 
+    hclust(method = "ward.D")
+
+ggdendrogram(agrupamento_h_md, rotate = T)
+
+tibble(alturas_dendrograma = agrupamento_h_md$height) %>% 
+    mutate(k = 1:n()) %>% 
+    ggplot(aes(x = k, y = alturas_dendrograma)) + 
+    geom_line(colour = "grey") + 
+    geom_point() + 
+    labs(x = "Junções feitas (34 - clusters)", 
+         y = "Dissimilaridade na junção", 
+         title = "Dissimilaridade em cada aglomeração")
+
 ```
 
